@@ -1,0 +1,21 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Variables de entorno
+.env
+.env.*
+
+# React / Vite
+dist/
+
+# IDE
+.vscode/
+.idea/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
