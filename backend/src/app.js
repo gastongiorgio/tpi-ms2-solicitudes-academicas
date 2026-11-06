@@ -2,6 +2,8 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
+const pool = require("./db");
+
 const app = express();
 
 const PORT = process.env.PORT || 3000;
@@ -65,15 +67,39 @@ app.get("/health", (req, res) => {
 
 // Estudiantes
 
-app.get("/estudiantes", (req, res) => {
-  res.json(estudiantes);
+app.get("/estudiantes", async (req, res) => {
+  try {
+    const resultado = await pool.query(
+      "SELECT * FROM estudiantes ORDER BY id"
+    );
+
+    res.json(resultado.rows);
+  } catch (error) {
+    console.error("Error al obtener estudiantes:", error.message);
+
+    res.status(500).json({
+      message: "Error al obtener estudiantes",
+    });
+  }
 });
 
 
 // Responsables
 
-app.get("/responsables", (req, res) => {
-  res.json(responsables);
+app.get("/responsables", async (req, res) => {
+  try {
+    const resultado = await pool.query(
+      "SELECT * FROM responsables ORDER BY id"
+    );
+
+    res.json(resultado.rows);
+  } catch (error) {
+    console.error("Error al obtener responsables:", error.message);
+
+    res.status(500).json({
+      message: "Error al obtener responsables",
+    });
+  }
 });
 
 
@@ -81,156 +107,280 @@ app.get("/responsables", (req, res) => {
 
 // Listar solicitudes y permitir filtros simples
 
-app.get("/solicitudes", (req, res) => {
-  const { estado, prioridad, tipo } = req.query;
+app.get("/solicitudes", async (req, res) => {
+  try {
+    const { estado, prioridad, tipo } = req.query;
 
-  let resultado = solicitudes;
+    let consulta = `
+      SELECT
+        s.id,
+        s.tipo,
+        s.descripcion,
+        s.prioridad,
+        s.estado,
+        s.fecha,
+        s.estudiante_id AS "estudianteId",
+        s.responsable_id AS "responsableId",
+        e.nombre AS estudiante,
+        r.nombre AS responsable
+      FROM solicitudes s
+      JOIN estudiantes e ON e.id = s.estudiante_id
+      LEFT JOIN responsables r ON r.id = s.responsable_id
+      WHERE 1 = 1
+    `;
 
-  if (estado) {
-    resultado = resultado.filter(
-      (solicitud) => solicitud.estado === estado
-    );
+    const valores = [];
+
+    if (estado) {
+      valores.push(estado);
+      consulta += ` AND s.estado = $${valores.length}`;
+    }
+
+    if (prioridad) {
+      valores.push(prioridad);
+      consulta += ` AND s.prioridad = $${valores.length}`;
+    }
+
+    if (tipo) {
+      valores.push(tipo);
+      consulta += ` AND s.tipo = $${valores.length}`;
+    }
+
+    consulta += " ORDER BY s.id";
+
+    const resultado = await pool.query(consulta, valores);
+
+    res.json(resultado.rows);
+  } catch (error) {
+    console.error("Error al obtener solicitudes:", error.message);
+
+    res.status(500).json({
+      message: "Error al obtener solicitudes",
+    });
   }
-
-  if (prioridad) {
-    resultado = resultado.filter(
-      (solicitud) => solicitud.prioridad === prioridad
-    );
-  }
-
-  if (tipo) {
-    resultado = resultado.filter(
-      (solicitud) => solicitud.tipo === tipo
-    );
-  }
-
-  res.json(resultado);
 });
 
 
 // Consultar una solicitud por ID
 
-app.get("/solicitudes/:id", (req, res) => {
-  const id = Number(req.params.id);
+app.get("/solicitudes/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
 
-  const solicitud = solicitudes.find(
-    (solicitud) => solicitud.id === id
-  );
+    const resultado = await pool.query(
+      `
+      SELECT
+        s.id,
+        s.tipo,
+        s.descripcion,
+        s.prioridad,
+        s.estado,
+        s.fecha,
+        s.estudiante_id AS "estudianteId",
+        s.responsable_id AS "responsableId",
+        e.nombre AS estudiante,
+        r.nombre AS responsable
+      FROM solicitudes s
+      JOIN estudiantes e ON e.id = s.estudiante_id
+      LEFT JOIN responsables r ON r.id = s.responsable_id
+      WHERE s.id = $1
+      `,
+      [id]
+    );
 
-  if (!solicitud) {
-    return res.status(404).json({
-      message: "Solicitud no encontrada",
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({
+        message: "Solicitud no encontrada",
+      });
+    }
+
+    res.json(resultado.rows[0]);
+  } catch (error) {
+    console.error("Error al obtener la solicitud:", error.message);
+
+    res.status(500).json({
+      message: "Error al obtener la solicitud",
     });
   }
-
-  res.json(solicitud);
 });
 
 
 // Crear una solicitud
 
-app.post("/solicitudes", (req, res) => {
-  const {
-    tipo,
-    descripcion,
-    prioridad,
-    estudianteId,
-  } = req.body;
+app.post("/solicitudes", async (req, res) => {
+  try {
+    const {
+      tipo,
+      descripcion,
+      prioridad,
+      estudianteId,
+    } = req.body;
 
-  if (!tipo || !descripcion || !prioridad || !estudianteId) {
-    return res.status(400).json({
-      message: "Faltan datos obligatorios",
+    if (!tipo || !descripcion || !prioridad || !estudianteId) {
+      return res.status(400).json({
+        message: "Faltan datos obligatorios",
+      });
+    }
+
+    const estudiante = await pool.query(
+      "SELECT * FROM estudiantes WHERE id = $1",
+      [estudianteId]
+    );
+
+    if (estudiante.rows.length === 0) {
+      return res.status(400).json({
+        message: "El estudiante indicado no existe",
+      });
+    }
+
+    const resultado = await pool.query(
+      `
+      INSERT INTO solicitudes (
+        tipo,
+        descripcion,
+        prioridad,
+        estado,
+        estudiante_id,
+        responsable_id
+      )
+      VALUES ($1, $2, $3, 'PENDIENTE', $4, NULL)
+      RETURNING
+        id,
+        tipo,
+        descripcion,
+        prioridad,
+        estado,
+        fecha,
+        estudiante_id AS "estudianteId",
+        responsable_id AS "responsableId"
+      `,
+      [tipo, descripcion, prioridad, estudianteId]
+    );
+
+    res.status(201).json(resultado.rows[0]);
+  } catch (error) {
+    console.error("Error al crear la solicitud:", error.message);
+
+    res.status(500).json({
+      message: "Error al crear la solicitud",
     });
   }
-
-  const estudiante = estudiantes.find(
-    (estudiante) => estudiante.id === estudianteId
-  );
-
-  if (!estudiante) {
-    return res.status(400).json({
-      message: "El estudiante indicado no existe",
-    });
-  }
-
-  const nuevaSolicitud = {
-    id: solicitudes.length + 1,
-    tipo,
-    descripcion,
-    prioridad,
-    estado: "PENDIENTE",
-    estudianteId,
-    responsableId: null,
-  };
-
-  solicitudes.push(nuevaSolicitud);
-
-  res.status(201).json(nuevaSolicitud);
 });
 
 
 // Cambiar estado
 
-app.patch("/solicitudes/:id/estado", (req, res) => {
-  const id = Number(req.params.id);
-  const { estado } = req.body;
+app.patch("/solicitudes/:id/estado", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { estado } = req.body;
 
-  const solicitud = solicitudes.find(
-    (solicitud) => solicitud.id === id
-  );
+    if (
+      estado !== "PENDIENTE" &&
+      estado !== "EN_PROCESO" &&
+      estado !== "COMPLETADA"
+    ) {
+      return res.status(400).json({
+        message: "Estado inválido",
+      });
+    }
 
-  if (!solicitud) {
-    return res.status(404).json({
-      message: "Solicitud no encontrada",
+    const resultado = await pool.query(
+      `
+      UPDATE solicitudes
+      SET estado = $1
+      WHERE id = $2
+      RETURNING
+        id,
+        tipo,
+        descripcion,
+        prioridad,
+        estado,
+        fecha,
+        estudiante_id AS "estudianteId",
+        responsable_id AS "responsableId"
+      `,
+      [estado, id]
+    );
+
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({
+        message: "Solicitud no encontrada",
+      });
+    }
+
+    res.json(resultado.rows[0]);
+  } catch (error) {
+    console.error("Error al cambiar el estado:", error.message);
+
+    res.status(500).json({
+      message: "Error al cambiar el estado",
     });
   }
-
-  if (
-    estado !== "PENDIENTE" &&
-    estado !== "EN_PROCESO" &&
-    estado !== "COMPLETADA"
-  ) {
-    return res.status(400).json({
-      message: "Estado inválido",
-    });
-  }
-
-  solicitud.estado = estado;
-
-  res.json(solicitud);
 });
 
 
 // Asignar responsable
 
-app.patch("/solicitudes/:id/responsable", (req, res) => {
-  const id = Number(req.params.id);
-  const { responsableId } = req.body;
+app.patch("/solicitudes/:id/responsable", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { responsableId } = req.body;
 
-  const solicitud = solicitudes.find(
-    (solicitud) => solicitud.id === id
-  );
+    const responsable = await pool.query(
+      "SELECT * FROM responsables WHERE id = $1",
+      [responsableId]
+    );
 
-  if (!solicitud) {
-    return res.status(404).json({
-      message: "Solicitud no encontrada",
+    if (responsable.rows.length === 0) {
+      return res.status(400).json({
+        message: "El responsable indicado no existe",
+      });
+    }
+
+    const resultado = await pool.query(
+      `
+      UPDATE solicitudes
+      SET responsable_id = $1
+      WHERE id = $2
+      RETURNING
+        id,
+        tipo,
+        descripcion,
+        prioridad,
+        estado,
+        fecha,
+        estudiante_id AS "estudianteId",
+        responsable_id AS "responsableId"
+      `,
+      [responsableId, id]
+    );
+
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({
+        message: "Solicitud no encontrada",
+      });
+    }
+
+    res.json(resultado.rows[0]);
+  } catch (error) {
+    console.error("Error al asignar responsable:", error.message);
+
+    res.status(500).json({
+      message: "Error al asignar responsable",
     });
   }
-
-  const responsable = responsables.find(
-    (responsable) => responsable.id === responsableId
-  );
-
-  if (!responsable) {
-    return res.status(400).json({
-      message: "El responsable indicado no existe",
-    });
-  }
-
-  solicitud.responsableId = responsableId;
-
-  res.json(solicitud);
 });
+
+
+pool
+  .query("SELECT NOW()")
+  .then(() => {
+    console.log("Conexión a PostgreSQL correcta");
+  })
+  .catch((error) => {
+    console.error("Error al conectar con PostgreSQL:", error.message);
+  });
 
 
 // Inicio del servidor

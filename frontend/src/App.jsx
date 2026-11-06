@@ -1,49 +1,55 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 
-const solicitudesIniciales = [
-  {
-    id: 1,
-    estudiante: "Estudiante Demo 1",
-    tipo: "Certificado de alumno regular",
-    descripcion: "Necesita el certificado para presentar en una institución.",
-    prioridad: "MEDIA",
-    estado: "PENDIENTE",
-    responsable: "Sin asignar",
-  },
-  {
-    id: 2,
-    estudiante: "Estudiante Demo 2",
-    tipo: "Equivalencia",
-    descripcion: "Solicita equivalencia de materias.",
-    prioridad: "ALTA",
-    estado: "EN_PROCESO",
-    responsable: "Secretaría Académica",
-  },
-  {
-    id: 3,
-    estudiante: "Estudiante Demo 3",
-    tipo: "Constancia de materias aprobadas",
-    descripcion: "Solicita una constancia actualizada.",
-    prioridad: "BAJA",
-    estado: "COMPLETADA",
-    responsable: "Coordinación",
-  },
-];
 
 const formularioInicial = {
-  estudiante: "",
+  estudianteId: "",
   tipo: "",
   descripcion: "",
   prioridad: "MEDIA",
 };
 
 function App() {
-  const [solicitudes, setSolicitudes] = useState(solicitudesIniciales);
+  const [solicitudes, setSolicitudes] = useState([]);
+  const [estudiantes, setEstudiantes] = useState([]);
+  const [responsables, setResponsables] = useState([]);
   const [formulario, setFormulario] = useState(formularioInicial);
   const [filtroEstado, setFiltroEstado] = useState("TODOS");
   const [filtroPrioridad, setFiltroPrioridad] = useState("TODAS");
+
+  useEffect(() => {
+    fetch("http://localhost:3000/solicitudes")
+      .then((respuesta) => respuesta.json())
+      .then((datos) => {
+        setSolicitudes(datos);
+      })
+      .catch((error) => {
+        console.error("Error al cargar solicitudes:", error);
+      });
+  }, []);
+
+  useEffect(() => {
+    fetch("http://localhost:3000/estudiantes")
+      .then((respuesta) => respuesta.json())
+      .then((datos) => {
+        setEstudiantes(datos);
+      })
+      .catch((error) => {
+        console.error("Error al cargar estudiantes:", error);
+      });
+  }, []);
+
+  useEffect(() => {
+    fetch("http://localhost:3000/responsables")
+      .then((respuesta) => respuesta.json())
+      .then((datos) => {
+        setResponsables(datos);
+      })
+      .catch((error) => {
+        console.error("Error al cargar responsables:", error);
+      });
+  }, []);
 
   const solicitudesFiltradas = solicitudes.filter((solicitud) => {
     const coincideEstado =
@@ -65,11 +71,11 @@ function App() {
     });
   }
 
-  function crearSolicitud(evento) {
+  async function crearSolicitud(evento) {
     evento.preventDefault();
 
     if (
-      !formulario.estudiante ||
+      !formulario.estudianteId ||
       !formulario.tipo ||
       !formulario.descripcion.trim()
     ) {
@@ -77,34 +83,100 @@ function App() {
       return;
     }
 
-    const nuevoId =
-      Math.max(0, ...solicitudes.map((solicitud) => solicitud.id)) + 1;
+    try {
+      const respuesta = await fetch("http://localhost:3000/solicitudes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tipo: formulario.tipo,
+          descripcion: formulario.descripcion.trim(),
+          prioridad: formulario.prioridad,
+          estudianteId: Number(formulario.estudianteId),
+        }),
+      });
 
-    const nuevaSolicitud = {
-      id: nuevoId,
-      ...formulario,
-      descripcion: formulario.descripcion.trim(),
-      estado: "PENDIENTE",
-      responsable: "Sin asignar",
-    };
-
-    setSolicitudes([...solicitudes, nuevaSolicitud]);
-    setFormulario(formularioInicial);
-  }
-
-  function actualizarSolicitud(id, campo, valor) {
-    const nuevasSolicitudes = solicitudes.map((solicitud) => {
-      if (solicitud.id === id) {
-        return {
-          ...solicitud,
-          [campo]: valor,
-        };
+      if (!respuesta.ok) {
+        throw new Error("No se pudo crear la solicitud");
       }
 
-      return solicitud;
-    });
+      const respuestaListado = await fetch(
+        "http://localhost:3000/solicitudes"
+      );
 
-    setSolicitudes(nuevasSolicitudes);
+      const solicitudesActualizadas = await respuestaListado.json();
+
+      setSolicitudes(solicitudesActualizadas);
+      setFormulario(formularioInicial);
+    } catch (error) {
+      console.error("Error al crear solicitud:", error);
+      alert("Ocurrió un error al crear la solicitud.");
+    }
+  }
+
+  async function actualizarEstado(id, estado) {
+    try {
+      const respuesta = await fetch(
+        `http://localhost:3000/solicitudes/${id}/estado`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            estado,
+          }),
+        }
+      );
+
+      if (!respuesta.ok) {
+        throw new Error("No se pudo actualizar el estado");
+      }
+
+      const respuestaListado = await fetch(
+        "http://localhost:3000/solicitudes"
+      );
+
+      const solicitudesActualizadas = await respuestaListado.json();
+
+      setSolicitudes(solicitudesActualizadas);
+    } catch (error) {
+      console.error("Error al actualizar estado:", error);
+      alert("Ocurrió un error al actualizar el estado.");
+    }
+  }
+
+  async function actualizarResponsable(id, responsableId) {
+    try {
+      const respuesta = await fetch(
+        `http://localhost:3000/solicitudes/${id}/responsable`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            responsableId: Number(responsableId),
+          }),
+        }
+      );
+
+      if (!respuesta.ok) {
+        throw new Error("No se pudo asignar el responsable");
+      }
+
+      const respuestaListado = await fetch(
+        "http://localhost:3000/solicitudes"
+      );
+
+      const solicitudesActualizadas = await respuestaListado.json();
+
+      setSolicitudes(solicitudesActualizadas);
+    } catch (error) {
+      console.error("Error al asignar responsable:", error);
+      alert("Ocurrió un error al asignar el responsable.");
+    }
   }
 
   return (
@@ -160,15 +232,17 @@ function App() {
               <label htmlFor="estudiante">Estudiante</label>
               <select
                 id="estudiante"
-                name="estudiante"
-                value={formulario.estudiante}
+                name="estudianteId"
+                value={formulario.estudianteId}
                 onChange={manejarCambio}
                 required
               >
                 <option value="">Seleccionar estudiante</option>
-                <option value="Estudiante Demo 1">Estudiante Demo 1</option>
-                <option value="Estudiante Demo 2">Estudiante Demo 2</option>
-                <option value="Estudiante Demo 3">Estudiante Demo 3</option>
+                {estudiantes.map((estudiante) => (
+                  <option key={estudiante.id} value={estudiante.id}>
+                    {estudiante.nombre}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -299,11 +373,7 @@ function App() {
                         aria-label={`Estado de solicitud ${solicitud.id}`}
                         value={solicitud.estado}
                         onChange={(e) =>
-                          actualizarSolicitud(
-                            solicitud.id,
-                            "estado",
-                            e.target.value
-                          )
+                          actualizarEstado(solicitud.id, e.target.value)
                         }
                       >
                         <option value="PENDIENTE">Pendiente</option>
@@ -315,20 +385,18 @@ function App() {
                     <td>
                       <select
                         aria-label={`Responsable de solicitud ${solicitud.id}`}
-                        value={solicitud.responsable}
+                        value={solicitud.responsableId || ""}
                         onChange={(e) =>
-                          actualizarSolicitud(
-                            solicitud.id,
-                            "responsable",
-                            e.target.value
-                          )
+                          actualizarResponsable(solicitud.id, e.target.value)
                         }
                       >
-                        <option value="Sin asignar">Sin asignar</option>
-                        <option value="Secretaría Académica">
-                          Secretaría Académica
-                        </option>
-                        <option value="Coordinación">Coordinación</option>
+                        <option value="">Sin asignar</option>
+
+                        {responsables.map((responsable) => (
+                          <option key={responsable.id} value={responsable.id}>
+                            {responsable.nombre}
+                          </option>
+                        ))}
                       </select>
                     </td>
                   </tr>
@@ -345,8 +413,7 @@ function App() {
         </section>
 
         <p className="nota">
-          Versión inicial: los datos son simulados y se reinician
-          al actualizar la página.
+          Los datos se almacenan en PostgreSQL a través de la API.
         </p>
       </main>
     </div>
