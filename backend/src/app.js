@@ -1,9 +1,11 @@
-const ESTADOS_SOLICITUD = require("./constants/estadosSolicitud");
-const express = require("express");
-const cors = require("cors");
 require("dotenv").config();
 
+const express = require("express");
+const cors = require("cors");
+
 const pool = require("./db");
+const ESTADOS_SOLICITUD = require("./constants/estadosSolicitud");
+const solicitudRepository = require("./repositories/solicitudRepository");
 
 const app = express();
 
@@ -125,34 +127,15 @@ app.get("/solicitudes/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
 
-    const resultado = await pool.query(
-      `
-      SELECT
-        s.id,
-        s.tipo,
-        s.descripcion,
-        s.prioridad,
-        s.estado,
-        s.fecha,
-        s.estudiante_id AS "estudianteId",
-        s.responsable_id AS "responsableId",
-        e.nombre AS estudiante,
-        r.nombre AS responsable
-      FROM solicitudes s
-      JOIN estudiantes e ON e.id = s.estudiante_id
-      LEFT JOIN responsables r ON r.id = s.responsable_id
-      WHERE s.id = $1
-      `,
-      [id]
-    );
+    const solicitud = await solicitudRepository.obtenerPorId(id);
 
-    if (resultado.rows.length === 0) {
+    if (!solicitud) {
       return res.status(404).json({
         message: "Solicitud no encontrada",
       });
     }
 
-    res.json(resultado.rows[0]);
+    res.json(solicitud);
   } catch (error) {
     console.error("Error al obtener la solicitud:", error.message);
 
@@ -191,31 +174,16 @@ app.post("/solicitudes", async (req, res) => {
       });
     }
 
-    const resultado = await pool.query(
-      `
-      INSERT INTO solicitudes (
-        tipo,
-        descripcion,
-        prioridad,
-        estado,
-        estudiante_id,
-        responsable_id
-      )
-      VALUES ($1, $2, $3, 'PENDIENTE', $4, NULL)
-      RETURNING
-        id,
-        tipo,
-        descripcion,
-        prioridad,
-        estado,
-        fecha,
-        estudiante_id AS "estudianteId",
-        responsable_id AS "responsableId"
-      `,
-      [tipo, descripcion, prioridad, estudianteId]
-    );
+    const datosSolicitud = {
+      tipo,
+      descripcion,
+      prioridad,
+      estudianteId,
+    };
 
-    res.status(201).json(resultado.rows[0]);
+    const solicitud = await solicitudRepository.crear(datosSolicitud);
+
+    res.status(201).json(solicitud);
   } catch (error) {
     console.error("Error al crear la solicitud:", error.message);
 
