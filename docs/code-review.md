@@ -1,45 +1,77 @@
 # Checklist de Code Review
 
+La revisión se realizó sobre la versión refactorizada del sistema con el objetivo de comprobar legibilidad, separación de responsabilidades, duplicación, manejo de errores, acceso a datos y conservación del comportamiento externo.
+
 ## Legibilidad
 
-- [ ] Los nombres de variables y funciones expresan claramente su intención.
-- [ ] Las funciones tienen una extensión razonable.
-- [ ] El código evita comentarios innecesarios o confusos.
-- [ ] No existen valores mágicos o strings repetidos sin una justificación clara.
+- [x] Los nombres de variables y funciones expresan claramente su intención.
+- [x] Las funciones principales tienen una extensión razonable.
+- [x] Los comentarios utilizados identifican secciones sin repetir innecesariamente el código.
+- [x] Los estados válidos del backend fueron centralizados en una constante.
 
 ## Responsabilidades
 
-- [ ] Cada módulo tiene una responsabilidad clara.
-- [ ] Los controladores no concentran lógica que debería estar en otros componentes.
-- [ ] La lógica de negocio está separada del acceso a datos.
-- [ ] Existe una cohesión adecuada dentro de los módulos.
+- [x] El acceso a datos de solicitudes fue separado de las rutas HTTP.
+- [x] Las consultas de solicitudes se encuentran agrupadas en `solicitudRepository.js`.
+- [x] La comunicación HTTP del frontend fue separada de `App.jsx`.
+- [x] La validación de campos obligatorios fue extraída a una función específica.
+
+### Observación
+
+`app.js` todavía contiene algunas operaciones simples relacionadas con estudiantes y responsables. No se realizó una separación adicional para evitar agregar complejidad innecesaria al alcance del trabajo.
 
 ## Duplicación
 
-- [ ] No existen validaciones repetidas innecesariamente.
-- [ ] No existe lógica de negocio duplicada.
-- [ ] Las operaciones repetidas fueron extraídas cuando corresponde.
+- [x] La URL base de la API dejó de repetirse en el frontend.
+- [x] La recarga de solicitudes fue centralizada en `cargarSolicitudes()`.
+- [x] Las operaciones HTTP del frontend fueron agrupadas en `services/api.js`.
+- [x] Se eliminaron estructuras temporales en memoria que habían quedado sin uso.
 
 ## Manejo de errores
 
-- [ ] Los errores son tratados de manera consistente.
-- [ ] Los códigos HTTP utilizados son adecuados.
-- [ ] Los mensajes de error son claros.
+- [x] Las rutas mantienen respuestas HTTP diferenciadas para operaciones exitosas y errores de validación.
+- [x] Se conserva el uso de `400` para datos inválidos.
+- [x] Se conserva el uso de `404` para solicitudes inexistentes.
+- [x] Se conserva el uso de `500` para errores internos.
+- [x] Los mensajes principales de error continúan siendo comprensibles para el cliente.
 
 ## Base de datos
 
-- [ ] Las consultas están separadas de la lógica de negocio cuando corresponde.
-- [ ] No existen credenciales almacenadas en el código.
-- [ ] Los datos de entrada son validados antes de utilizarse.
+- [x] Las consultas principales de solicitudes fueron trasladadas al repositorio.
+- [x] Las credenciales de PostgreSQL se obtienen mediante variables de entorno.
+- [x] El archivo `.env` no se almacena en el repositorio.
+- [x] Los datos obligatorios son validados antes de crear una solicitud.
+- [x] Se verifica la existencia del estudiante antes de crear una solicitud.
+- [x] Se verifica la existencia del responsable antes de asignarlo.
+
+## Frontend
+
+- [x] Las llamadas HTTP se encuentran centralizadas en `frontend/src/services/api.js`.
+- [x] `App.jsx` utiliza funciones del servicio en lugar de repetir llamadas `fetch`.
+- [x] La actualización del listado reutiliza `cargarSolicitudes()`.
+- [x] Las funciones principales del sistema continúan disponibles desde la interfaz.
 
 ## Pruebas
 
-- [ ] Los casos funcionales principales fueron verificados.
-- [ ] Las pruebas continúan pasando después del refactoring.
-- [ ] Los cambios no modificaron negativamente el comportamiento externo.
+- [x] Se definieron diez casos de prueba funcionales.
+- [x] Los diez casos fueron ejecutados sobre la versión inicial.
+- [x] Los diez casos fueron ejecutados nuevamente después del refactoring.
+- [x] Los resultados esperados se conservaron en todos los casos.
+- [x] Las pruebas cuentan con evidencias obtenidas mediante Postman.
 
 ## Documentación
 
-- [ ] El README se encuentra actualizado.
-- [ ] Los endpoints principales están documentados.
-- [ ] Las decisiones técnicas relevantes fueron registradas.
+- [x] El diagnóstico inicial se encuentra documentado.
+- [x] Los refactorings realizados se encuentran documentados.
+- [x] Los casos de prueba y sus resultados están registrados.
+- [x] El uso de inteligencia artificial está declarado.
+- [x] Las evidencias gráficas se almacenan en `docs/evidencias`.
+- [x] El README describe el sistema, las tecnologías y la forma básica de ejecución.
+
+## Resultado de la revisión
+
+La revisión final no detectó cambios en el comportamiento externo de las operaciones verificadas.
+
+Las mejoras realizadas se concentraron en organización interna, reducción de duplicación, separación de responsabilidades y legibilidad.
+
+No se buscó transformar el proyecto en una arquitectura más compleja. Se priorizaron modificaciones acotadas y justificadas por los problemas identificados durante el diagnóstico.
