@@ -79,52 +79,11 @@ app.get("/responsables", async (req, res) => {
 
 // Solicitudes
 
-// Listar solicitudes y permitir filtros simples
-
 app.get("/solicitudes", async (req, res) => {
   try {
-    const { estado, prioridad, tipo } = req.query;
+    const solicitudes = await solicitudRepository.listar(req.query);
 
-    let consulta = `
-      SELECT
-        s.id,
-        s.tipo,
-        s.descripcion,
-        s.prioridad,
-        s.estado,
-        s.fecha,
-        s.estudiante_id AS "estudianteId",
-        s.responsable_id AS "responsableId",
-        e.nombre AS estudiante,
-        r.nombre AS responsable
-      FROM solicitudes s
-      JOIN estudiantes e ON e.id = s.estudiante_id
-      LEFT JOIN responsables r ON r.id = s.responsable_id
-      WHERE 1 = 1
-    `;
-
-    const valores = [];
-
-    if (estado) {
-      valores.push(estado);
-      consulta += ` AND s.estado = $${valores.length}`;
-    }
-
-    if (prioridad) {
-      valores.push(prioridad);
-      consulta += ` AND s.prioridad = $${valores.length}`;
-    }
-
-    if (tipo) {
-      valores.push(tipo);
-      consulta += ` AND s.tipo = $${valores.length}`;
-    }
-
-    consulta += " ORDER BY s.id";
-
-    const resultado = await pool.query(consulta, valores);
-
-    res.json(resultado.rows);
+    res.json(solicitudes);
   } catch (error) {
     console.error("Error al obtener solicitudes:", error.message);
 
@@ -134,8 +93,6 @@ app.get("/solicitudes", async (req, res) => {
   }
 });
 
-
-// Consultar una solicitud por ID
 
 app.get("/solicitudes/:id", async (req, res) => {
   try {
@@ -159,8 +116,6 @@ app.get("/solicitudes/:id", async (req, res) => {
   }
 });
 
-
-// Crear una solicitud
 
 app.post("/solicitudes", async (req, res) => {
   try {
@@ -196,8 +151,6 @@ app.post("/solicitudes", async (req, res) => {
 });
 
 
-// Cambiar estado
-
 app.patch("/solicitudes/:id/estado", async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -209,31 +162,18 @@ app.patch("/solicitudes/:id/estado", async (req, res) => {
       });
     }
 
-    const resultado = await pool.query(
-      `
-      UPDATE solicitudes
-      SET estado = $1
-      WHERE id = $2
-      RETURNING
-        id,
-        tipo,
-        descripcion,
-        prioridad,
-        estado,
-        fecha,
-        estudiante_id AS "estudianteId",
-        responsable_id AS "responsableId"
-      `,
-      [estado, id]
+    const solicitud = await solicitudRepository.cambiarEstado(
+      id,
+      estado
     );
 
-    if (resultado.rows.length === 0) {
+    if (!solicitud) {
       return res.status(404).json({
         message: "Solicitud no encontrada",
       });
     }
 
-    res.json(resultado.rows[0]);
+    res.json(solicitud);
   } catch (error) {
     console.error("Error al cambiar el estado:", error.message);
 
@@ -243,8 +183,6 @@ app.patch("/solicitudes/:id/estado", async (req, res) => {
   }
 });
 
-
-// Asignar responsable
 
 app.patch("/solicitudes/:id/responsable", async (req, res) => {
   try {
@@ -262,31 +200,18 @@ app.patch("/solicitudes/:id/responsable", async (req, res) => {
       });
     }
 
-    const resultado = await pool.query(
-      `
-      UPDATE solicitudes
-      SET responsable_id = $1
-      WHERE id = $2
-      RETURNING
-        id,
-        tipo,
-        descripcion,
-        prioridad,
-        estado,
-        fecha,
-        estudiante_id AS "estudianteId",
-        responsable_id AS "responsableId"
-      `,
-      [responsableId, id]
+    const solicitud = await solicitudRepository.asignarResponsable(
+      id,
+      responsableId
     );
 
-    if (resultado.rows.length === 0) {
+    if (!solicitud) {
       return res.status(404).json({
         message: "Solicitud no encontrada",
       });
     }
 
-    res.json(resultado.rows[0]);
+    res.json(solicitud);
   } catch (error) {
     console.error("Error al asignar responsable:", error.message);
 
