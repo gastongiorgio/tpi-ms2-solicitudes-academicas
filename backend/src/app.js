@@ -1,3 +1,4 @@
+const ESTADOS_SOLICITUD = require("./constants/estadosSolicitud");
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
@@ -10,49 +11,6 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-
-
-// Datos temporales en memoria
-
-let estudiantes = [
-  {
-    id: 1,
-    nombre: "Juan Pérez",
-    legajo: "50123",
-    email: "juan.perez@ejemplo.com",
-  },
-  {
-    id: 2,
-    nombre: "Lucía Gómez",
-    legajo: "50456",
-    email: "lucia.gomez@ejemplo.com",
-  },
-];
-
-let responsables = [
-  {
-    id: 1,
-    nombre: "Laura Martínez",
-    area: "Departamento de Alumnos",
-  },
-  {
-    id: 2,
-    nombre: "Carlos Fernández",
-    area: "Secretaría Académica",
-  },
-];
-
-let solicitudes = [
-  {
-    id: 1,
-    tipo: "CERTIFICADO_ALUMNO_REGULAR",
-    descripcion: "Necesito presentar el certificado en mi trabajo.",
-    prioridad: "MEDIA",
-    estado: "PENDIENTE",
-    estudianteId: 1,
-    responsableId: null,
-  },
-];
 
 
 // Health check
@@ -275,11 +233,7 @@ app.patch("/solicitudes/:id/estado", async (req, res) => {
     const id = Number(req.params.id);
     const { estado } = req.body;
 
-    if (
-      estado !== "PENDIENTE" &&
-      estado !== "EN_PROCESO" &&
-      estado !== "COMPLETADA"
-    ) {
+    if (!ESTADOS_SOLICITUD.includes(estado)) {
       return res.status(400).json({
         message: "Estado inválido",
       });
