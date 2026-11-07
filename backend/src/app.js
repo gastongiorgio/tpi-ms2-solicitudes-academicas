@@ -15,6 +15,20 @@ app.use(cors());
 app.use(express.json());
 
 
+// Validaciones
+
+function faltanDatosObligatorios(datosSolicitud) {
+  const {
+    tipo,
+    descripcion,
+    prioridad,
+    estudianteId,
+  } = datosSolicitud;
+
+  return !tipo || !descripcion || !prioridad || !estudianteId;
+}
+
+
 // Health check
 
 app.get("/health", (req, res) => {
@@ -150,14 +164,9 @@ app.get("/solicitudes/:id", async (req, res) => {
 
 app.post("/solicitudes", async (req, res) => {
   try {
-    const {
-      tipo,
-      descripcion,
-      prioridad,
-      estudianteId,
-    } = req.body;
+    const datosSolicitud = req.body;
 
-    if (!tipo || !descripcion || !prioridad || !estudianteId) {
+    if (faltanDatosObligatorios(datosSolicitud)) {
       return res.status(400).json({
         message: "Faltan datos obligatorios",
       });
@@ -165,7 +174,7 @@ app.post("/solicitudes", async (req, res) => {
 
     const estudiante = await pool.query(
       "SELECT * FROM estudiantes WHERE id = $1",
-      [estudianteId]
+      [datosSolicitud.estudianteId]
     );
 
     if (estudiante.rows.length === 0) {
@@ -173,13 +182,6 @@ app.post("/solicitudes", async (req, res) => {
         message: "El estudiante indicado no existe",
       });
     }
-
-    const datosSolicitud = {
-      tipo,
-      descripcion,
-      prioridad,
-      estudianteId,
-    };
 
     const solicitud = await solicitudRepository.crear(datosSolicitud);
 
@@ -294,6 +296,8 @@ app.patch("/solicitudes/:id/responsable", async (req, res) => {
   }
 });
 
+
+// Verificar conexión con PostgreSQL
 
 pool
   .query("SELECT NOW()")
