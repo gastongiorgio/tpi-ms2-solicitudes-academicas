@@ -1,6 +1,14 @@
-
 import { useEffect, useState } from "react";
 import "./App.css";
+
+import {
+  obtenerSolicitudes,
+  obtenerEstudiantes,
+  obtenerResponsables,
+  crearSolicitud as crearSolicitudApi,
+  cambiarEstadoSolicitud,
+  asignarResponsableSolicitud,
+} from "./services/api";
 
 
 const formularioInicial = {
@@ -10,6 +18,7 @@ const formularioInicial = {
   prioridad: "MEDIA",
 };
 
+
 function App() {
   const [solicitudes, setSolicitudes] = useState([]);
   const [estudiantes, setEstudiantes] = useState([]);
@@ -18,20 +27,22 @@ function App() {
   const [filtroEstado, setFiltroEstado] = useState("TODOS");
   const [filtroPrioridad, setFiltroPrioridad] = useState("TODAS");
 
-  useEffect(() => {
-    fetch("http://localhost:3000/solicitudes")
-      .then((respuesta) => respuesta.json())
-      .then((datos) => {
-        setSolicitudes(datos);
-      })
-      .catch((error) => {
-        console.error("Error al cargar solicitudes:", error);
-      });
-  }, []);
+
+  async function cargarSolicitudes() {
+    const datos = await obtenerSolicitudes();
+    setSolicitudes(datos);
+  }
+
 
   useEffect(() => {
-    fetch("http://localhost:3000/estudiantes")
-      .then((respuesta) => respuesta.json())
+    cargarSolicitudes().catch((error) => {
+      console.error("Error al cargar solicitudes:", error);
+    });
+  }, []);
+
+
+  useEffect(() => {
+    obtenerEstudiantes()
       .then((datos) => {
         setEstudiantes(datos);
       })
@@ -40,9 +51,9 @@ function App() {
       });
   }, []);
 
+
   useEffect(() => {
-    fetch("http://localhost:3000/responsables")
-      .then((respuesta) => respuesta.json())
+    obtenerResponsables()
       .then((datos) => {
         setResponsables(datos);
       })
@@ -50,6 +61,7 @@ function App() {
         console.error("Error al cargar responsables:", error);
       });
   }, []);
+
 
   const solicitudesFiltradas = solicitudes.filter((solicitud) => {
     const coincideEstado =
@@ -62,6 +74,7 @@ function App() {
     return coincideEstado && coincidePrioridad;
   });
 
+
   function manejarCambio(evento) {
     const { name, value } = evento.target;
 
@@ -70,6 +83,7 @@ function App() {
       [name]: value,
     });
   }
+
 
   async function crearSolicitud(evento) {
     evento.preventDefault();
@@ -84,30 +98,17 @@ function App() {
     }
 
     try {
-      const respuesta = await fetch("http://localhost:3000/solicitudes", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          tipo: formulario.tipo,
-          descripcion: formulario.descripcion.trim(),
-          prioridad: formulario.prioridad,
-          estudianteId: Number(formulario.estudianteId),
-        }),
-      });
+      const datosSolicitud = {
+        tipo: formulario.tipo,
+        descripcion: formulario.descripcion.trim(),
+        prioridad: formulario.prioridad,
+        estudianteId: Number(formulario.estudianteId),
+      };
 
-      if (!respuesta.ok) {
-        throw new Error("No se pudo crear la solicitud");
-      }
+      await crearSolicitudApi(datosSolicitud);
 
-      const respuestaListado = await fetch(
-        "http://localhost:3000/solicitudes"
-      );
+      await cargarSolicitudes();
 
-      const solicitudesActualizadas = await respuestaListado.json();
-
-      setSolicitudes(solicitudesActualizadas);
       setFormulario(formularioInicial);
     } catch (error) {
       console.error("Error al crear solicitud:", error);
@@ -115,76 +116,42 @@ function App() {
     }
   }
 
+
   async function actualizarEstado(id, estado) {
     try {
-      const respuesta = await fetch(
-        `http://localhost:3000/solicitudes/${id}/estado`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            estado,
-          }),
-        }
-      );
+      await cambiarEstadoSolicitud(id, estado);
 
-      if (!respuesta.ok) {
-        throw new Error("No se pudo actualizar el estado");
-      }
-
-      const respuestaListado = await fetch(
-        "http://localhost:3000/solicitudes"
-      );
-
-      const solicitudesActualizadas = await respuestaListado.json();
-
-      setSolicitudes(solicitudesActualizadas);
+      await cargarSolicitudes();
     } catch (error) {
       console.error("Error al actualizar estado:", error);
       alert("Ocurrió un error al actualizar el estado.");
     }
   }
 
+
   async function actualizarResponsable(id, responsableId) {
     try {
-      const respuesta = await fetch(
-        `http://localhost:3000/solicitudes/${id}/responsable`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            responsableId: Number(responsableId),
-          }),
-        }
+      await asignarResponsableSolicitud(
+        id,
+        Number(responsableId)
       );
 
-      if (!respuesta.ok) {
-        throw new Error("No se pudo asignar el responsable");
-      }
-
-      const respuestaListado = await fetch(
-        "http://localhost:3000/solicitudes"
-      );
-
-      const solicitudesActualizadas = await respuestaListado.json();
-
-      setSolicitudes(solicitudesActualizadas);
+      await cargarSolicitudes();
     } catch (error) {
       console.error("Error al asignar responsable:", error);
       alert("Ocurrió un error al asignar el responsable.");
     }
   }
 
+
   return (
     <div className="app">
       <header className="encabezado">
         <div className="contenedor">
           <p className="subtitulo">Metodología de Sistemas II</p>
+
           <h1>Sistema de Gestión de Solicitudes Académicas</h1>
+
           <p>
             Registro, seguimiento y administración de solicitudes
             estudiantiles.
@@ -230,6 +197,7 @@ function App() {
           <form onSubmit={crearSolicitud} className="formulario">
             <div className="campo">
               <label htmlFor="estudiante">Estudiante</label>
+
               <select
                 id="estudiante"
                 name="estudianteId"
@@ -238,6 +206,7 @@ function App() {
                 required
               >
                 <option value="">Seleccionar estudiante</option>
+
                 {estudiantes.map((estudiante) => (
                   <option key={estudiante.id} value={estudiante.id}>
                     {estudiante.nombre}
@@ -248,6 +217,7 @@ function App() {
 
             <div className="campo">
               <label htmlFor="tipo">Tipo de solicitud</label>
+
               <select
                 id="tipo"
                 name="tipo"
@@ -256,13 +226,19 @@ function App() {
                 required
               >
                 <option value="">Seleccionar tipo</option>
+
                 <option value="Certificado de alumno regular">
                   Certificado de alumno regular
                 </option>
+
                 <option value="Constancia de materias aprobadas">
                   Constancia de materias aprobadas
                 </option>
-                <option value="Equivalencia">Equivalencia</option>
+
+                <option value="Equivalencia">
+                  Equivalencia
+                </option>
+
                 <option value="Otra solicitud académica">
                   Otra solicitud académica
                 </option>
@@ -271,6 +247,7 @@ function App() {
 
             <div className="campo campo-completo">
               <label htmlFor="descripcion">Descripción</label>
+
               <textarea
                 id="descripcion"
                 name="descripcion"
@@ -284,6 +261,7 @@ function App() {
 
             <div className="campo">
               <label htmlFor="prioridad">Prioridad</label>
+
               <select
                 id="prioridad"
                 name="prioridad"
@@ -312,7 +290,10 @@ function App() {
 
           <div className="filtros">
             <div className="campo">
-              <label htmlFor="filtroEstado">Filtrar por estado</label>
+              <label htmlFor="filtroEstado">
+                Filtrar por estado
+              </label>
+
               <select
                 id="filtroEstado"
                 value={filtroEstado}
@@ -326,13 +307,19 @@ function App() {
             </div>
 
             <div className="campo">
-              <label htmlFor="filtroPrioridad">Filtrar por prioridad</label>
+              <label htmlFor="filtroPrioridad">
+                Filtrar por prioridad
+              </label>
+
               <select
                 id="filtroPrioridad"
                 value={filtroPrioridad}
                 onChange={(e) => setFiltroPrioridad(e.target.value)}
               >
-                <option value="TODAS">Todas las prioridades</option>
+                <option value="TODAS">
+                  Todas las prioridades
+                </option>
+
                 <option value="BAJA">Baja</option>
                 <option value="MEDIA">Media</option>
                 <option value="ALTA">Alta</option>
@@ -373,12 +360,23 @@ function App() {
                         aria-label={`Estado de solicitud ${solicitud.id}`}
                         value={solicitud.estado}
                         onChange={(e) =>
-                          actualizarEstado(solicitud.id, e.target.value)
+                          actualizarEstado(
+                            solicitud.id,
+                            e.target.value
+                          )
                         }
                       >
-                        <option value="PENDIENTE">Pendiente</option>
-                        <option value="EN_PROCESO">En proceso</option>
-                        <option value="COMPLETADA">Completada</option>
+                        <option value="PENDIENTE">
+                          Pendiente
+                        </option>
+
+                        <option value="EN_PROCESO">
+                          En proceso
+                        </option>
+
+                        <option value="COMPLETADA">
+                          Completada
+                        </option>
                       </select>
                     </td>
 
@@ -387,13 +385,19 @@ function App() {
                         aria-label={`Responsable de solicitud ${solicitud.id}`}
                         value={solicitud.responsableId || ""}
                         onChange={(e) =>
-                          actualizarResponsable(solicitud.id, e.target.value)
+                          actualizarResponsable(
+                            solicitud.id,
+                            e.target.value
+                          )
                         }
                       >
                         <option value="">Sin asignar</option>
 
                         {responsables.map((responsable) => (
-                          <option key={responsable.id} value={responsable.id}>
+                          <option
+                            key={responsable.id}
+                            value={responsable.id}
+                          >
                             {responsable.nombre}
                           </option>
                         ))}

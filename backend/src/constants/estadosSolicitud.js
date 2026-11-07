@@ -1,0 +1,7 @@
+const ESTADOS_SOLICITUD = [
+  "PENDIENTE",
+  "EN_PROCESO",
+  "COMPLETADA",
+];
+
+module.exports = ESTADOS_SOLICITUD;
